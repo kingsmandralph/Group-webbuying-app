@@ -25,7 +25,7 @@ type GroupBuys = {
 export default function Home() {
   const originalUsdcContract = "0x07865c6E87B9F70255377e024ace6630C1Eaa37F"; //usdc token contract address
   const groupBuyManagerContract =
-    "Replace with your group buy manager smart contract address here";
+    "0x09bf3d0e5d0bc28164c6c994588b7d549b948aa2";
 
   //variables
   const [currentWalletAddress, setCurrentWalletAddress] = useState<string>("");
@@ -79,21 +79,53 @@ export default function Home() {
 
       // Create a contract instance of your deployed GroupBuy Manager contract
       // 1) add code here
+      const groupBuyContractManager = new ethers.Contract(
+        groupBuyManagerContract,
+        GroupBuyManagerABI,
+        signer
+       );
 
       // call the getGroupBuys function from the contract to get all addresses
       // 2) add code here
+      const groupBuysAddresses = await groupBuyContractManager.getGroupBuys();
 
       // call getGroupBuyInfo function from contract
       // 3) add code here
+      const groupBuys = await groupBuyContractManager.getGroupBuyInfo(
+        groupBuysAddresses
+       );
 
       // declare new array
       let new_groupBuys = [];
 
       // loop through array and add it into a new array
       // 4) add code here
+      for (let i = 0; i < groupBuys.endTime.length; i++) {
+        let endTime: number = groupBuys.endTime[i].toNumber();
+        let groupBuyState: number = groupBuys.groupBuyState[i].toNumber();
+     
+        let price = groupBuys.price[i]; //
+        let productName: string = groupBuys.productName[i];
+        let productDescription: string = groupBuys.productDescription[i];
+     
+        let sellerAddress: string = groupBuys.seller[i];
+     
+        let newGroupBuy = {
+         endTime: endTime,
+         price: (price / 1000000).toString(),
+         seller: sellerAddress.toLowerCase(),
+         groupBuyState: groupBuyState,
+         productName: productName,
+         productDescription: productDescription,
+         groupBuyAddress: groupBuysAddresses[i],
+         buyers: [],
+        };
+        new_groupBuys.push(newGroupBuy);
+       }
 
       // set to variable
       // 5) add code here
+      setAllGroupBuys(new_groupBuys);
     }
   }
 
@@ -138,15 +170,26 @@ export default function Home() {
 
         // call create groupbuy function from the contract
         // 1) add code here
+        let { hash } = await groupBuyContractManager.createGroupbuy(
+          createGroupBuyFields.endTime * 60, // Converting minutes to seconds
+          ethers.utils.parseUnits(createGroupBuyFields.price.toString(), 6), 
+          createGroupBuyFields.productName,
+          createGroupBuyFields.productDescription,
+          {
+           gasLimit: 1200000,
+          }
+         );
 
         //wait for transaction to be mined
         // 2) add code here
+        await provider.waitForTransaction(hash);
 
         //close modal
         closeModal();
 
         //display alert message
         // 3) add code here
+        alert(`Transaction sent! Hash: ${hash}`);
 
         //call allGroupbuys to refresh the current list
         await getAllGroupBuys();
@@ -217,9 +260,14 @@ export default function Home() {
 
         // call approval function to give permission to transfer USDC from user wallet to groupbuy smart contract
         // 1) add code here
+        const usdcApprovalTxn = await usdcContract.approve(
+          currentActiveGroupBuy.groupBuyAddress,
+          ethers.utils.parseUnits("1000", 6)
+         );
 
         // wait for transaction to be mined
         // 2) add code here
+        await usdcApprovalTxn.wait();
 
         closeModal();
 
@@ -236,14 +284,19 @@ export default function Home() {
 
         // call place order function from group buy contract
         // 3) add code here
+        let { hash } = await groupBuyContract.placeOrder({
+          gasLimit: 700000,
+         });
 
         // Wait till the transaction is mined
         // 4) add code here
+        await provider.waitForTransaction(hash);
 
         closeModal();
 
         // display alert mesaage
         // 5) add code here
+        alert(`Transaction sent! Hash: ${hash}`);
 
         //get updated buyers
         //get all current buyers(address) and price(same for all)
@@ -287,14 +340,17 @@ export default function Home() {
 
         //call withdraw funds function from group buy contract
         // 1) add code here
+        let { hash } = await groupBuyContract.withdrawFunds();
 
         // Wait till the transaction is mined
         // 2) add code here
+        await provider.waitForTransaction(hash);
 
         setIsLoading(false);
         closeModal();
         // display slert message
         // 3) add code here
+        alert(`Transaction sent! Hash: ${hash}`);
       }
     } catch (error) {
       console.log(error);
